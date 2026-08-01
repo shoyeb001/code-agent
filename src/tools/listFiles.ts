@@ -1,33 +1,27 @@
 // tool for listing files 
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 import { BaseTool, type ToolResult } from "./baseTool.js";
 
-type ListFilesInput = {
-    path?: string;
-    recursive?: boolean;
-    maxDepth?: number;
-}
+const listFilesSchema = z.object({
+    path: z.string().optional(),
+    recursive: z.boolean().optional(),
+    maxDepth: z.number().int().min(0).max(10).optional(),
+});
 
-export class ListFilesTool extends BaseTool {
+type ListFilesInput = z.infer<typeof listFilesSchema>;
+
+export class ListFilesTool extends BaseTool<ListFilesInput> {
     readonly name = "list_files";
     readonly description = 'List files and folders in the project. For exploring code, use recursive true. Input: {"path":"src","recursive":true,"maxDepth":3}';
+    readonly schema = listFilesSchema;
 
-    async execute(input: string): Promise<ToolResult> {
+    async execute(input: ListFilesInput): Promise<ToolResult> {
         try {
-            const parsedInput = this.parseInput(input);
-            const targetPath = this.resolveProjectPath(parsedInput.path ?? ".");
-            const recursive = parsedInput.recursive ?? false;
-            const maxDepth = parsedInput.maxDepth ?? 3;
-            // const entries = await readdir(targetPath);
-
-            // const lines = await Promise.all(
-            //     entries.map(async (entry) => {
-            //         const entryPath = path.join(targetPath, entry);
-            //         const entryStat = await stat(entryPath);
-            //         return entryStat.isDirectory() ? `${entry}/` : entry;
-            //     })
-            // );
+            const targetPath = this.resolveProjectPath(input.path ?? ".");
+            const recursive = input.recursive ?? false;
+            const maxDepth = input.maxDepth ?? 3;
             const files = await this.listPath(targetPath, recursive, maxDepth);
             return {
                 success: true,
@@ -38,15 +32,6 @@ export class ListFilesTool extends BaseTool {
                 success: false,
                 output: error instanceof Error ? error.message : String(error),
             }
-        }
-    }
-    private parseInput(input: string): ListFilesInput {
-        if (!input.trim()) return {};
-
-        try {
-            return this.parseJson<ListFilesInput>(input);
-        } catch (error) {
-            throw new Error("Invalid input format for list_files tool");
         }
     }
 

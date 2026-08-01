@@ -1,17 +1,19 @@
 import path from "node:path";
+import type { z } from "zod";
 
 export type ToolResult = {
     success: boolean;
     output: string;
 };
 
-export abstract class BaseTool {
+export abstract class BaseTool<TInput> {
     abstract readonly name: string;
     abstract readonly description: string;
+    abstract readonly schema: z.ZodType<TInput>;
 
-    constructor(protected readonly projectRoot: string = process.cwd()) {}
+    constructor(protected readonly projectRoot: string = process.cwd()) { }
 
-    abstract execute(input: string): Promise<ToolResult>;
+    abstract execute(input: TInput): Promise<ToolResult>;
 
     protected resolveProjectPath(inputPath: string): string {
         const resolvedPath = path.resolve(this.projectRoot, inputPath);
@@ -22,9 +24,5 @@ export abstract class BaseTool {
         }
 
         return resolvedPath;
-    }
-
-    protected parseJson<T>(input: string): T {
-        return JSON.parse(input) as T;
     }
 }
