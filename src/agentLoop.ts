@@ -22,18 +22,20 @@ export class Agent {
     public async run(userInput: string): Promise<string> {
         //adding user messages
         this.addUserMessage(userInput);
-        const res = await askModel(this.messages);
-        console.log("Model response:", res);
-        const toolCall = this.parseToolCall(res);
-        console.log("Parsed tool call:", toolCall);
-        if (!toolCall) {
+        //adding agent loop calling
+        for (let step = 0; step < 5; step++) {
+            const res = await askModel(this.messages);
+            console.log("Model response:", res);
+            const toolCall = this.parseToolCall(res);
+            console.log("Parsed tool call:", toolCall);
+            if (!toolCall) {
+                this.addAssistantMessage(res);
+                return res;
+            }
+            const toolResult = await this.tools.execute(toolCall.tool, toolCall.input);
+            // adding ai meesages
             this.addAssistantMessage(res);
-            return res;
-        }
-        const toolResult = await this.tools.execute(toolCall.tool, toolCall.input);
-        // adding ai meesages
-        this.addAssistantMessage(res);
-        this.addUserMessage(`
+            this.addUserMessage(`
   Calling tool ${toolCall.tool}:
 
   Success: ${toolResult.success}
@@ -41,10 +43,12 @@ export class Agent {
   Output:
   ${toolResult.output}.
   `);
+        }
 
-        const finalRes = await askModel(this.messages);
-        this.addAssistantMessage(finalRes);
-        return finalRes;
+        return "Stopped: too many tool calls. Please try a more specific request.";
+        // const finalRes = await askModel(this.messages);
+        // this.addAssistantMessage(finalRes);
+        // return finalRes;
     }
     public getHistory(): ChatMessage[] {
         return [...this.messages];
