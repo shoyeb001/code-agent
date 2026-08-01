@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { BaseTool, type ToolResult } from "./baseTool.js";
+import path from "node:path";
 
 export class ReadFileTool extends BaseTool {
     readonly name = 'read_file';
@@ -7,6 +8,7 @@ export class ReadFileTool extends BaseTool {
 
     async execute(input: string): Promise<ToolResult> {
         try {
+            const filePath = path.resolve(process.cwd(), input);
             const content = await readFile(input, 'utf-8');
             return {
                 success: true,
