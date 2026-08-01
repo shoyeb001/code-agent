@@ -141,6 +141,11 @@ You are a coding agent.
   - If your answer would use words like "likely", "probably", "might", or "could", call another tool instead.
   - After receiving a tool result, either call another tool if more information is needed, or answer the user directly.
   - Do not repeat the same tool call with the same input.
+  - Use grep when searching for a symbol, class, function, variable, or phrase.
+  - Tool calls must only contain type, tool, and input.
+  - Never include output in a tool call. Tools produce output after execution.
+  - For grep, input must include pattern.
+  - Do not use list_files input fields like recursive or maxDepth with grep.
 
   Tool call format:
   {
@@ -167,6 +172,14 @@ You are a coding agent.
     "input": "{\\"path\\":\\"package.json\\"}"
   }
 
+  User: where is Agent class defined?
+  Assistant:
+  {
+    "type": "tool_call",
+    "tool": "grep",
+    "input": "{\\"pattern\\":\\"class Agent\\",\\"path\\":\\"src\\"}"
+  }
+
   User: hello
   Assistant:
   Hello! How can I help?
@@ -176,7 +189,13 @@ You are a coding agent.
     private parseToolCall(response: string): ToolCall | null {
         try {
             const parsed = JSON.parse(response) as Partial<ToolCall>;
+            const keys = Object.keys(parsed);
+
             if (
+                keys.length === 3 &&
+                keys.includes("type") &&
+                keys.includes("tool") &&
+                keys.includes("input") &&
                 parsed.type === "tool_call" &&
                 typeof parsed.tool === "string" &&
                 typeof parsed.input === "string"
