@@ -20,35 +20,85 @@ export class Agent {
     }
 
     public async run(userInput: string): Promise<string> {
-        //adding user messages
         this.addUserMessage(userInput);
-        //adding agent loop calling
-        for (let step = 0; step < 5; step++) {
+
+        const executedToolCalls = new Set<string>();
+        let hasReadFile = false;
+
+        for (let step = 0; step < 10; step++) {
             const res = await askModel(this.messages);
-            console.log("Model response:", res);
             const toolCall = this.parseToolCall(res);
-            console.log("Parsed tool call:", toolCall);
+
             if (!toolCall) {
+                if (this.shouldRejectFinalAnswer(userInput, res, hasReadFile)) {
+                    this.addUserMessage(`
+  Your previous answer guessed from filenames instead of reading source code.
+
+  You must call read_file on the most relevant files before answering.
+  Do not use words like likely, probably, might, could, or seems.
+  `.trim());
+
+                    continue;
+                }
+
                 this.addAssistantMessage(res);
                 return res;
             }
-            const toolResult = await this.tools.execute(toolCall.tool, toolCall.input);
-            // adding ai meesages
+
+            const toolCallKey = `${toolCall.tool}:${toolCall.input}`;
+
+            if (executedToolCalls.has(toolCallKey)) {
+                this.addUserMessage(`
+  You already called ${toolCall.tool} with this same input:
+  ${toolCall.input}
+
+  Do not repeat the same tool call. Use a different tool/input or answer with the information you have.
+  `.trim());
+
+                continue;
+            }
+
+            executedToolCalls.add(toolCallKey);
+
+            const toolResult = await this.tools.execute(
+                toolCall.tool,
+                toolCall.input
+            );
+
+            if (toolCall.tool === "read_file" && toolResult.success) {
+                hasReadFile = true;
+            }
+
             this.addAssistantMessage(res);
+
             this.addUserMessage(`
-  Calling tool ${toolCall.tool}:
+  Tool result for ${toolCall.tool}:
 
   Success: ${toolResult.success}
 
   Output:
-  ${toolResult.output}.
-  `);
+  ${toolResult.output}
+
+  Continue working on the original user request.
+  If this output is only a file list, read the important files before explaining code behavior.
+  `.trim());
         }
 
         return "Stopped: too many tool calls. Please try a more specific request.";
-        // const finalRes = await askModel(this.messages);
-        // this.addAssistantMessage(finalRes);
-        // return finalRes;
+    }
+
+    private shouldRejectFinalAnswer(
+        userInput: string,
+        answer: string,
+        hasReadFile: boolean
+    ): boolean {
+        const userAskedForCodeExplanation =
+            /\b(explain|what is|how does|structure|code|project|folder|file)\b/i.test(userInput);
+
+        const answerSoundsLikeGuess =
+            /\b(likely|probably|might|could|seems|possibly)\b/i.test(answer);
+
+        return userAskedForCodeExplanation && answerSoundsLikeGuess && !hasReadFile;
     }
     public getHistory(): ChatMessage[] {
         return [...this.messages];
@@ -74,7 +124,7 @@ export class Agent {
 
     private createSystemPrompt(): string {
         return `
-        You are a coding agent.
+You are a coding agent.
 
   You can either:
   1. Answer normally, if you already know the answer.
@@ -90,22 +140,29 @@ export class Agent {
   - When calling a tool, respond ONLY with valid JSON.
   - Do not wrap JSON in markdown.
   - Do not add explanation before or after JSON.
+  - When exploring a folder, call list_files with recursive true and maxDepth 3.
+  - Do not guess what a file does only from its name.
+  - If the user asks to explain code, read the relevant files before answering.
+  - If you only have filenames and not file contents, do not explain behavior yet. Call read_file.
+  - If your answer would use words like "likely", "probably", "might", or "could", call another tool instead.
+  - After receiving a tool result, either call another tool if more information is needed, or answer the user directly.
+  - Do not repeat the same tool call with the same input.
 
   Tool call format:
   {
     "type": "tool_call",
     "tool": "list_files",
-    "input": "{\\"path\\":\\".\\"}"
+    "input": "{\\"path\\":\\"src\\",\\"recursive\\":true,\\"maxDepth\\":3}"
   }
 
   Examples:
 
-  User: what files are in this project?
+  User: explain the src folder
   Assistant:
   {
     "type": "tool_call",
     "tool": "list_files",
-    "input": "{\\"path\\":\\".\\"}"
+    "input": "{\\"path\\":\\"src\\",\\"recursive\\":true,\\"maxDepth\\":3}"
   }
 
   User: read package.json
