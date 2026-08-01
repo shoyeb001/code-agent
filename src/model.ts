@@ -13,22 +13,33 @@ export type ChatMessage = {
 };
 
 const token = process.env.HF_TOKEN;
-const modelName =
-  process.env.HF_MODEL ?? "Qwen/Qwen2.5-Coder-7B-Instruct:fastest";
+const provider = process.env.MODEL_PROVIDER ?? "ollama";
 
-if (!token) {
+if (provider === "hf" && !token) {
   throw new Error("Missing HF_TOKEN in .env");
 }
 
-const llm = new ChatOpenAI({
-  model: modelName,
-  apiKey: token,
-  temperature: 0.2,
-  maxTokens: 1024,
-  configuration: {
-    baseURL: "https://router.huggingface.co/v1",
-  },
-});
+const llm =
+  provider === "ollama"
+    ? new ChatOpenAI({
+        model: process.env.OLLAMA_MODEL ?? "qwen3.5:0.8b",
+        apiKey: "ollama",
+        temperature: 0.2,
+        maxTokens: 1024,
+        configuration: {
+          baseURL: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1",
+        },
+      })
+    : new ChatOpenAI({
+        model:
+          process.env.HF_MODEL ?? "Qwen/Qwen2.5-Coder-7B-Instruct:fastest",
+        apiKey: token,
+        temperature: 0.2,
+        maxTokens: 1024,
+        configuration: {
+          baseURL: "https://router.huggingface.co/v1",
+        },
+      });
 
 function toLangChainMessages(messages: ChatMessage[]): BaseMessage[] {
   return messages.map((message) => {

@@ -23,19 +23,18 @@ export class Agent {
         this.addUserMessage(userInput);
 
         const executedToolCalls = new Set<string>();
-        let hasReadFile = false;
 
         for (let step = 0; step < 10; step++) {
             const res = await askModel(this.messages);
             const toolCall = this.parseToolCall(res);
 
             if (!toolCall) {
-                if (this.shouldRejectFinalAnswer(userInput, res, hasReadFile)) {
+                if (this.shouldRejectFinalAnswer(userInput, res)) {
                     this.addUserMessage(`
-  Your previous answer guessed from filenames instead of reading source code.
+  Your previous answer used guessing language.
 
-  You must call read_file on the most relevant files before answering.
-  Do not use words like likely, probably, might, could, or seems.
+  You must inspect the source before answering. Call read_file for the files you are describing.
+  Do not answer with words like likely, probably, might, could, seems, or possibly.
   `.trim());
 
                     continue;
@@ -65,10 +64,6 @@ export class Agent {
                 toolCall.input
             );
 
-            if (toolCall.tool === "read_file" && toolResult.success) {
-                hasReadFile = true;
-            }
-
             this.addAssistantMessage(res);
 
             this.addUserMessage(`
@@ -89,8 +84,7 @@ export class Agent {
 
     private shouldRejectFinalAnswer(
         userInput: string,
-        answer: string,
-        hasReadFile: boolean
+        answer: string
     ): boolean {
         const userAskedForCodeExplanation =
             /\b(explain|what is|how does|structure|code|project|folder|file)\b/i.test(userInput);
@@ -98,7 +92,7 @@ export class Agent {
         const answerSoundsLikeGuess =
             /\b(likely|probably|might|could|seems|possibly)\b/i.test(answer);
 
-        return userAskedForCodeExplanation && answerSoundsLikeGuess && !hasReadFile;
+        return userAskedForCodeExplanation && answerSoundsLikeGuess;
     }
     public getHistory(): ChatMessage[] {
         return [...this.messages];
