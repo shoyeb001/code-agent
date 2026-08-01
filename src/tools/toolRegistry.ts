@@ -1,11 +1,13 @@
 import { BaseTool, type ToolResult } from "./baseTool.js";
 import { ReadFileTool } from "./readFile.js";
+import { ListFilesTool } from "./listFiles.js";
 
 export class ToolRegistry {
     private tools = new Map<string, BaseTool>();
 
     constructor() {
         this.register(new ReadFileTool());
+        this.register(new ListFilesTool());
     }
 
     register(tool: BaseTool): void {

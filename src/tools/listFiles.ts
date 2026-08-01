@@ -7,7 +7,7 @@ type ListFilesInput = {
     path?: string;
 }
 
-export class listFilesTool extends BaseTool {
+export class ListFilesTool extends BaseTool {
     readonly name = "list_files";
     readonly description = "List the files in a project folder."
 

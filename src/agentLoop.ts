@@ -23,7 +23,9 @@ export class Agent {
         //adding user messages
         this.addUserMessage(userInput);
         const res = await askModel(this.messages);
+        console.log("Model response:", res);
         const toolCall = this.parseToolCall(res);
+        console.log("Parsed tool call:", toolCall);
         if (!toolCall) {
             this.addAssistantMessage(res);
             return res;
@@ -68,23 +70,51 @@ export class Agent {
 
     private createSystemPrompt(): string {
         return `
-           You are a coding agent.
+        You are a coding agent.
 
-            You can answer normally, or request a tool.
+  You can either:
+  1. Answer normally, if you already know the answer.
+  2. Call a tool, if you need project/file information.
 
-          Available tools:
-         ${this.tools.getToolDescriptions()}
+  Available tools:
+  ${this.tools.getToolDescriptions()}
 
-          If you need a tool, respond only with valid JSON like this:
-      {
-       "type": "tool_call",
-       "tool": "read_file",
-       "input": "src/index.ts"
-    }
+  Rules:
+  - If the user asks about files, folders, project structure, source code, package.json, or implementation details, you MUST call a tool.
+  - Do not describe the tools to the user.
+  - Do not say which tools are available.
+  - When calling a tool, respond ONLY with valid JSON.
+  - Do not wrap JSON in markdown.
+  - Do not add explanation before or after JSON.
 
-     Do not wrap JSON in markdown.
-     Do not explain when calling a tool.
-     If no tool is needed, answer normally.
+  Tool call format:
+  {
+    "type": "tool_call",
+    "tool": "list_files",
+    "input": "{\\"path\\":\\".\\"}"
+  }
+
+  Examples:
+
+  User: what files are in this project?
+  Assistant:
+  {
+    "type": "tool_call",
+    "tool": "list_files",
+    "input": "{\\"path\\":\\".\\"}"
+  }
+
+  User: read package.json
+  Assistant:
+  {
+    "type": "tool_call",
+    "tool": "read_file",
+    "input": "{\\"path\\":\\"package.json\\"}"
+  }
+
+  User: hello
+  Assistant:
+  Hello! How can I help?
      `.trim();
     }
 
